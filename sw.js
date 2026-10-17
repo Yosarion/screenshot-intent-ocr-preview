@@ -1,8 +1,8 @@
 'use strict';
 // Static application shell ONLY. File picker images and OCR results are never cached.
-const CACHE = 'screenshot-intent-private-ocr-v2';
+const CACHE = 'screenshot-intent-private-ocr-v3';
 const STATIC = [
-  './', './index.html', './app.mjs', './ocr.mjs', './intent.mjs',
+  './', './index.html', './app.mjs', './app.mjs?v=20261017.3', './ocr.mjs', './intent.mjs',
   './manifest.webmanifest', './vendor/tesseract.min.js', './vendor/worker.min.js',
   './vendor/tesseract-core-lstm.wasm.js',
   './vendor/lang/rus.traineddata.gz', './vendor/lang/eng.traineddata.gz',
@@ -21,5 +21,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin ||
       !allowedPaths.has(url.pathname)) return;
+  // Fresh HTML online prevents a previously installed shell hiding a release.
+  // Offline navigation (including a release query) falls back to the static root.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match(new URL('./', self.registration.scope))));
+    return;
+  }
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });

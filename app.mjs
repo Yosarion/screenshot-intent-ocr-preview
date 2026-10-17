@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   photo: $('photo'), preview: $('preview'), scan: $('scan'), clear: $('clear'),
   recognized: $('recognized'), analyze: $('analyze'), status: $('status'),
-  results: $('results'),
+  results: $('results'), actions: $('actions'), actionStatus: $('action-status'),
 };
 const categoryNames = {
   restaurant: 'Ресторан', product: 'Товар', event: 'Мероприятие',
@@ -20,6 +20,7 @@ let busy = false;
 let selectedFile = null;
 let activeWorker = null;
 let scanGeneration = 0;
+let draftActionId = null;
 const offlineOcr = document.documentElement.dataset.offlineOcr === 'true';
 const offlineWorkerOptions = offlineOcr ? {
   workerPath: new URL('./vendor/worker.min.js', import.meta.url).href,
@@ -29,7 +30,7 @@ const offlineWorkerOptions = offlineOcr ? {
   cacheMethod: 'none',
 } : {};
 if (offlineOcr && 'serviceWorker' in navigator) {
-  void navigator.serviceWorker.register(new URL('./sw.js', import.meta.url), { scope: './' })
+  void navigator.serviceWorker.register(new URL('./sw.js', import.meta.url), { scope: './', updateViaCache: 'none' })
     .catch(() => { /* OCR still works online if offline caching is unavailable. */ });
 }
 function setStatus(message) { ui.status.textContent = message; }
@@ -41,14 +42,20 @@ function showText(parent, tag, text, className = '') {
   return item;
 }
 function renderSuggestion(text) {
+  if (!text.trim()) {
+    ui.results.replaceChildren();
+    setStatus('Сначала распознайте скриншот или введите текст.');
+    return;
+  }
   const suggestion = suggestIntentFromOcr(makeOcrResult('manual', text));
   const proposed = reviewableSuggestedIntent(suggestion);
   ui.results.replaceChildren();
   showText(ui.results, 'h2', 'Предположение');
   showText(ui.results, 'p', 'Категория: ' + categoryNames[suggestion.category]);
-  showText(ui.results, 'p', 'Намерение: ' +
-    (proposed ? intentNames[proposed] + ' (предложено, не выбрано)' : 'не выбрано — используйте кнопки ниже'));
-  showText(ui.results, 'p', 'Сила текстовых сигналов: ' + suggestion.signalStrength, 'small');
+  const intentSummary = showText(ui.results, 'p', 'Намерение: ' +
+    (proposed ? intentNames[proposed] + ' (предложено, не выбрано)' : 'выберите кнопкой ниже'));
+  const signalNames = { none: 'нет сигналов', weak: 'слабые', moderate: 'умеренные', strong: 'выраженные' };
+  showText(ui.results, 'p', 'Текстовые признаки: ' + signalNames[suggestion.signalStrength], 'small');
   for (const evidence of suggestion.evidence) showText(ui.results, 'span', evidence.token, 'chip');
   for (const item of suggestion.extracted.prices) showText(ui.results, 'span', 'Цена: ' + item, 'chip');
   for (const item of suggestion.extracted.dates) showText(ui.results, 'span', 'Дата: ' + item, 'chip');
@@ -74,12 +81,12 @@ function renderSuggestion(text) {
         remember: 'Сохранить для будущего решения',
         share: 'Решить, кому и как поделиться',
       }[value];
+      intentSummary.textContent = 'Намерение подтверждено: ' + label;
       confirmation.replaceChildren();
       showText(confirmation, 'h3', 'Результат: намерение выбрано');
       showText(confirmation, 'p', 'Ваш выбор: ' + label + '.');
       showText(confirmation, 'p', 'Следующий шаг: ' + nextStep + '.');
-      showText(confirmation, 'p',
-        'Выбор действует только в этой тестовой странице. В основное приложение и календарь он пока не сохраняется.', 'small');
+      renderActionEditor(confirmation, value, nextStep);
       setStatus('Намерение выбрано: ' + label + '. Результат показан ниже.');
       confirmation.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
@@ -98,6 +105,145 @@ function renderSuggestion(text) {
   }
 }
 
+function invalidateDraft() {
+  ui.results.replaceChildren();
+  draftActionId = null;
+}
+// Only explicit action fields enter IndexedDB. No image, file name, URL or OCR text.
+let databasePromise;
+function actionDatabase() {
+  if (!databasePromise) databasePromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open('screenshot-intent-actions', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('actions', { keyPath: 'id' });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(new Error('Хранилище недоступно'));
+    request.onblocked = () => reject(new Error('Закройте другую вкладку приложения и повторите'));
+  }).catch((error) => { databasePromise = null; throw error; });
+  return databasePromise;
+}
+async function actionTransaction(mode, run) {
+  const database = await actionDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('actions', mode);
+    const store = transaction.objectStore('actions');
+    let result;
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = transaction.onabort = () => reject(new Error('Не удалось сохранить изменения на устройстве'));
+    try { run(store, (value) => { result = value; }, transaction); }
+    catch (error) { transaction.abort(); reject(error); }
+  });
+}
+function readActions() {
+  return actionTransaction('readonly', (store, done) => {
+    store.getAll().onsuccess = (event) => done(event.target.result);
+  });
+}
+async function storeAction(action) {
+  await actionTransaction('readwrite', (store, done, transaction) => {
+    store.count().onsuccess = (event) => {
+      store.get(action.id).onsuccess = (existing) => {
+        if (event.target.result >= 200 && !existing.target.result) {
+          transaction.abort(); return;
+        }
+        store.put({ ...action, createdAt: existing.target.result?.createdAt ?? action.createdAt });
+        done(true);
+      };
+    };
+  });
+}
+async function changeAction(id, status) {
+  await actionTransaction('readwrite', (store) => {
+    store.get(id).onsuccess = (event) => {
+      const record = event.target.result;
+      if (!record) return;
+      if (status === 'delete') store.delete(id);
+      else store.put({ ...record, status, updatedAt: Date.now() });
+    };
+  });
+}
+async function renderActions() {
+  try {
+    const records = await readActions();
+    ui.actions.replaceChildren();
+    const active = records.filter((item) => item.status === 'open');
+    const history = records.filter((item) => item.status !== 'open');
+    ui.actionStatus.textContent = active.length ? 'Открытых действий: ' + active.length : 'Пока нет сохранённых действий.';
+    for (const [title, items] of [['Мои действия', active], ['История', history]]) {
+      if (!items.length) continue;
+      showText(ui.actions, 'h3', title);
+      for (const record of items.sort((a, b) => b.createdAt - a.createdAt)) {
+        const card = document.createElement('article');
+        card.className = 'action-card';
+        card.dataset.actionId = record.id;
+        showText(card, 'h3', record.title);
+        showText(card, 'p', intentNames[record.intent] + (record.dueDate ? ' · Срок: ' + record.dueDate : ' · Без срока'), 'small');
+        showText(card, 'p', { open: 'Открыто', done: 'Выполнено', cancelled: 'Отменено' }[record.status], 'small');
+        const options = record.status === 'open'
+          ? [['done', 'Выполнено'], ['cancelled', 'Отменить'], ['delete', 'Удалить']]
+          : [['open', 'Вернуть'], ['delete', 'Удалить']];
+        for (const [status, label] of options) {
+          const button = document.createElement('button');
+          button.type = 'button'; button.className = 'secondary'; button.textContent = label;
+          button.dataset.actionStatus = status;
+          button.addEventListener('click', async () => {
+            button.disabled = true;
+            try { await changeAction(record.id, status); await renderActions(); }
+            catch { ui.actionStatus.textContent = 'Не удалось изменить действие. Повторите.'; button.disabled = false; }
+          });
+          card.append(button);
+        }
+        ui.actions.append(card);
+      }
+    }
+  } catch {
+    ui.actionStatus.textContent = 'Локальное хранилище недоступно. OCR и выбор намерения работают; сохранение сейчас невозможно.';
+  }
+}
+function renderActionEditor(parent, intent, nextStep) {
+  showText(parent, 'p', 'На устройстве сохраняются только название, намерение, срок и статус. Скриншот и распознанный текст не сохраняются.', 'small');
+  const titleLabel = showText(parent, 'label', 'Название действия');
+  titleLabel.htmlFor = 'action-title';
+  const title = document.createElement('input');
+  title.id = 'action-title'; title.type = 'text'; title.maxLength = 140;
+  title.value = nextStep; title.autocomplete = 'off'; title.spellcheck = false;
+  parent.append(title);
+  const dueLabel = showText(parent, 'label', 'Срок (необязательно)');
+  dueLabel.htmlFor = 'action-due';
+  const due = document.createElement('input');
+  due.id = 'action-due'; due.type = 'date'; parent.append(due);
+  const save = document.createElement('button');
+  save.type = 'button'; save.id = 'save-action'; save.textContent = 'Сохранить действие';
+  const message = document.createElement('p');
+  message.id = 'save-status'; message.setAttribute('role', 'status');
+  let saving = false;
+  save.addEventListener('click', async () => {
+    if (saving) return;
+    const name = title.value.trim().replace(/\s+/g, ' ');
+    if (!name || name.length > 140) { message.textContent = 'Введите название от 1 до 140 символов.'; return; }
+    if (due.value && !/^\d{4}-\d{2}-\d{2}$/.test(due.value)) {
+      message.textContent = 'Проверьте срок действия.'; return;
+    }
+    saving = true; save.disabled = true;
+    const generation = scanGeneration;
+    try {
+      const id = draftActionId ?? crypto.randomUUID();
+      draftActionId = id;
+      await storeAction({ id, intent, title: name, dueDate: due.value || null,
+        status: 'open', createdAt: Date.now(), updatedAt: Date.now() });
+      if (generation === scanGeneration && parent.isConnected) {
+        draftActionId = id;
+        message.textContent = 'Действие сохранено на этом устройстве.';
+        save.textContent = 'Обновить действие';
+      }
+      await renderActions();
+    } catch {
+      message.textContent = 'Сохранение не выполнено. Проверьте доступ к хранилищу; максимум 200 действий.';
+    } finally { saving = false; save.disabled = false; }
+  });
+  parent.append(save, message);
+}
+void renderActions();
+
 function reset() {
   scanGeneration += 1;
   if (activeWorker) void activeWorker.terminate().catch(() => {});
@@ -108,14 +254,14 @@ function reset() {
   ui.preview.removeAttribute('src');
   ui.preview.style.display = 'none';
   ui.recognized.value = '';
-  ui.results.replaceChildren();
+  invalidateDraft();
   ui.scan.disabled = true;
   setStatus('Данные текущего теста очищены из интерфейса.');
 }
 ui.photo.addEventListener('change', () => {
   // Never show the previous screenshot's text or confirmed choice for a new file.
   ui.recognized.value = '';
-  ui.results.replaceChildren();
+  invalidateDraft();
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   selectedFile = null;
   previewUrl = null;
@@ -136,7 +282,11 @@ ui.photo.addEventListener('change', () => {
   setStatus('Готово. Нажмите «Распознать локально».');
 });
 ui.clear.addEventListener('click', reset);
-ui.analyze.addEventListener('click', () => renderSuggestion(ui.recognized.value));
+ui.analyze.addEventListener('click', () => { if (!busy) renderSuggestion(ui.recognized.value); });
+ui.recognized.addEventListener('input', () => {
+  invalidateDraft();
+  setStatus('Текст изменён. Нажмите «Предложить намерение» и подтвердите выбор заново.');
+});
 
 ui.scan.addEventListener('click', async () => {
   if (busy || !selectedFile) return;
@@ -145,6 +295,10 @@ ui.scan.addEventListener('click', async () => {
     return;
   }
   busy = true;
+  invalidateDraft();
+  ui.recognized.value = '';
+  ui.recognized.disabled = true;
+  ui.analyze.disabled = true;
   const currentGeneration = ++scanGeneration;
   ui.scan.disabled = true;
   ui.photo.disabled = true;
@@ -152,6 +306,7 @@ ui.scan.addEventListener('click', async () => {
   try {
     setStatus('Готовлю изображение…');
     await ui.preview.decode();
+    if (currentGeneration !== scanGeneration) return;
     if (ui.preview.naturalWidth > 12000 || ui.preview.naturalHeight > 12000) {
       throw new Error('Изображение слишком большое по размерам (максимум 12000 пикселей)');
     }
@@ -192,6 +347,8 @@ ui.scan.addEventListener('click', async () => {
     if (activeWorker === worker) activeWorker = null;
     busy = false;
     ui.photo.disabled = false;
+    ui.recognized.disabled = false;
+    ui.analyze.disabled = false;
     ui.scan.disabled = !selectedFile;
   }
 });
