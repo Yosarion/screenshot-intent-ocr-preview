@@ -1,0 +1,10 @@
+{
+  "name": "Screenshot Intent — Приватный OCR",
+  "short_name": "Intent OCR",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f1e9",
+  "theme_color": "#f8f1e9"
+}

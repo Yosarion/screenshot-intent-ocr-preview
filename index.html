@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru" data-offline-ocr="true"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer"><title>Screenshot Intent · Приватный OCR</title><link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#f8f1e9">
+<style>
+:root{font:16px system-ui,-apple-system,sans-serif;background:#f8f1e9;color:#292521}*{box-sizing:border-box}body{margin:0}
+main{max-width:990px;margin:auto;padding:32px 20px 70px}.eyebrow{color:#8472a4;font-weight:800;letter-spacing:.13em;font-size:12px}
+h1{font-size:clamp(28px,5vw,46px);letter-spacing:-.04em;margin:8px 0}h2{font-size:19px;margin:0 0 16px}
+p{color:#6d645c;line-height:1.5}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{background:#fffcf8;border-radius:25px;border:1px solid #e8ddd1;padding:21px;box-shadow:0 5px 20px #4733290a}
+label{font-size:14px;font-weight:750;display:block;margin:0 0 10px}input[type=file]{max-width:100%;padding:14px;background:#f3ece5;border-radius:14px}
+#preview{max-width:100%;max-height:310px;object-fit:contain;border-radius:14px;margin-top:12px;display:none}
+textarea{width:100%;min-height:170px;font:14px/1.5 system-ui,sans-serif;padding:13px;border-radius:14px;border:1px solid #ded4cc}
+button{background:#75629c;border:0;border-radius:13px;padding:12px 16px;color:white;font-weight:750;margin:12px 8px 0 0}
+button.secondary{background:#ece3dc;color:#50453d}button:disabled{opacity:.5}
+.chip{display:inline-block;background:#f0e7f4;padding:7px 10px;border-radius:18px;margin:5px 5px 0 0;font-size:13px;color:#5d5275}
+.small{font-size:12px}.warning{background:#eee7f3;border-left:4px solid #9d87b5;padding:13px 16px;border-radius:10px}
+#status{font-size:13px}#results{padding-top:15px}details{padding:13px;border-radius:14px;background:#f0e8df;margin-top:20px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}main{padding:20px 14px 60px}}
+</style></head><body><main>
+<header><div class="eyebrow">SCREENSHOT INTENT · PRIVATE OCR</div><h1>Скриншот → смысл → действие</h1>
+<p>Проверяем бесплатное локальное распознавание и предложения намерений. Бесплатная браузерная версия для iPhone и Android, не нативное приложение.</p>
+<p class="warning"><b>Приватность:</b> OCR, модели и классификатор загружаются только с этого сайта. Выбранное изображение не отправляется на сервер и обрабатывается в браузере. Сайт остаётся экспериментальным: используйте тестовые изображения до проверки на вашем устройстве.</p></header>
+<div class="grid"><section class="card"><h2>1 · Выберите скриншот</h2>
+<label for="photo">Изображение PNG / JPEG / WebP (до 10 МБ)</label><input id="photo" type="file" accept="image/png,image/jpeg,image/webp">
+<img id="preview" alt="Предпросмотр выбранного изображения">
+<button id="scan" disabled>Распознать локально</button><button class="secondary" id="clear">Очистить</button>
+<p id="status" role="status" aria-live="polite">Данные фото не сохраняются в этом прототипе.</p>
+<p class="small">Русский + английский. При первом открытии сайт загружает OCR-модели со своего адреса. После успешного кэширования может работать без интернета.</p>
+</section><section class="card"><h2>2 · Проверьте результат</h2>
+<label for="recognized">Распознанный текст (можно исправить вручную)</label><textarea id="recognized" placeholder="Здесь появится распознанный текст. Можно также вставить текст вручную."></textarea>
+<button class="secondary" id="analyze">Предложить намерение</button>
+<p class="small">Категория — эвристика, не статистическая вероятность. Любое действие требует подтверждения.</p>
+<div id="results" role="region" aria-live="polite"></div></section></div>
+<details><summary>Известные ограничения</summary><p>Нет поиска в Photos, распознавания объектов без текста, настоящего календаря или системных напоминаний. Дата без года остаётся датой без года. Изображение не сохраняется в SQLite.</p></details>
+</main><script src="./vendor/tesseract.min.js" defer></script><script type="module" src="./app.mjs"></script></body></html>
