@@ -47,13 +47,55 @@ function renderSuggestion(text) {
   showText(ui.results, 'h2', 'Предположение');
   showText(ui.results, 'p', 'Категория: ' + categoryNames[suggestion.category]);
   showText(ui.results, 'p', 'Намерение: ' +
-    (proposed ? intentNames[proposed] + ' (подтвердить)' : 'нужно выбрать вручную'));
+    (proposed ? intentNames[proposed] + ' (предложено, не выбрано)' : 'не выбрано — используйте кнопки ниже'));
   showText(ui.results, 'p', 'Сила текстовых сигналов: ' + suggestion.signalStrength, 'small');
   for (const evidence of suggestion.evidence) showText(ui.results, 'span', evidence.token, 'chip');
   for (const item of suggestion.extracted.prices) showText(ui.results, 'span', 'Цена: ' + item, 'chip');
   for (const item of suggestion.extracted.dates) showText(ui.results, 'span', 'Дата: ' + item, 'chip');
   for (const item of suggestion.extracted.urls) showText(ui.results, 'span', 'Ссылка: ' + item, 'chip');
-  showText(ui.results, 'p', 'Это не выполненное действие. Проверьте текст и подтвердите намерение в основном приложении.', 'small');
+  showText(ui.results, 'p', 'Выберите, что хотите сделать с этим скриншотом:', 'small');
+  const choices = document.createElement('div');
+  choices.setAttribute('role', 'group');
+  choices.setAttribute('aria-label', 'Выбор намерения');
+  for (const [value, label] of Object.entries(intentNames)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = label;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => {
+      for (const option of choices.querySelectorAll('button')) {
+        option.setAttribute('aria-pressed', String(option === button));
+      }
+      const nextStep = {
+        do: 'Запланировать следующий шаг',
+        buy: 'Сравнить варианты и решить, покупать ли',
+        read: 'Вернуться к материалу и прочитать',
+        remember: 'Сохранить для будущего решения',
+        share: 'Решить, кому и как поделиться',
+      }[value];
+      confirmation.replaceChildren();
+      showText(confirmation, 'h3', 'Результат: намерение выбрано');
+      showText(confirmation, 'p', 'Ваш выбор: ' + label + '.');
+      showText(confirmation, 'p', 'Следующий шаг: ' + nextStep + '.');
+      showText(confirmation, 'p',
+        'Выбор действует только в этой тестовой странице. В основное приложение и календарь он пока не сохраняется.', 'small');
+      setStatus('Намерение выбрано: ' + label + '. Результат показан ниже.');
+      confirmation.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    choices.append(button);
+  }
+  ui.results.append(choices);
+  const confirmation = document.createElement('div');
+  confirmation.id = 'confirmed-intent';
+  confirmation.setAttribute('role', 'status');
+  confirmation.setAttribute('aria-live', 'polite');
+  ui.results.append(confirmation);
+  if (proposed) {
+    const hint = showText(ui.results, 'p',
+      'Подсказка: «' + intentNames[proposed] + '». Это предположение, а не ваш выбор.', 'small');
+    hint.className = 'small';
+  }
 }
 
 function reset() {
@@ -71,6 +113,9 @@ function reset() {
   setStatus('Данные текущего теста очищены из интерфейса.');
 }
 ui.photo.addEventListener('change', () => {
+  // Never show the previous screenshot's text or confirmed choice for a new file.
+  ui.recognized.value = '';
+  ui.results.replaceChildren();
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   selectedFile = null;
   previewUrl = null;
@@ -137,7 +182,7 @@ ui.scan.addEventListener('click', async () => {
     renderSuggestion(result.text);
     setStatus(result.status === 'empty'
       ? 'Текст не обнаружен. Можно ввести текст вручную.'
-      : 'Готово: текст распознан локально; результат требует проверки.');
+      : 'Текст распознан. Выберите намерение под результатом анализа.');
   } catch (error) {
     if (currentGeneration === scanGeneration) {
       setStatus('Ошибка OCR: ' + (error instanceof Error ? error.message : String(error)));

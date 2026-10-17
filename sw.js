@@ -1,6 +1,6 @@
 'use strict';
 // Static application shell ONLY. File picker images and OCR results are never cached.
-const CACHE = 'screenshot-intent-private-ocr-v1';
+const CACHE = 'screenshot-intent-private-ocr-v2';
 const STATIC = [
   './', './index.html', './app.mjs', './ocr.mjs', './intent.mjs',
   './manifest.webmanifest', './vendor/tesseract.min.js', './vendor/worker.min.js',
