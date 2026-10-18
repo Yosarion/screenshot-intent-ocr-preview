@@ -24,8 +24,9 @@ button.secondary{background:#ece3dc;color:#50453d}button[aria-pressed=true]{back
 <div class="grid"><section class="card"><h2>1 · Выберите скриншот</h2>
 <label for="photo">Изображение PNG / JPEG / WebP (до 10 МБ)</label><input id="photo" type="file" accept="image/png,image/jpeg,image/webp">
 <img id="preview" alt="Предпросмотр выбранного изображения">
-<button id="scan" disabled>Распознать локально</button><button class="secondary" id="clear">Очистить</button>
+<button id="scan" disabled>Распознать текст</button><button id="vision" disabled>Понять изображение</button><button class="secondary" id="clear">Очистить</button>
 <p id="status" role="status" aria-live="polite">Данные фото не сохраняются в этом прототипе.</p>
+<p class="small">«Понять изображение» определяет общие классы предметов локально. Первый запуск дополнительно загружает около 30 МБ; фото остаётся на устройстве. Если в скриншоте есть надписи, сначала распознайте текст — результаты будут объединены.</p>
 <p class="small">Русский + английский. При первом открытии сайт загружает OCR-модели со своего адреса. После успешного кэширования может работать без интернета.</p>
 </section><section class="card"><h2>2 · Проверьте результат</h2>
 <label for="recognized">Распознанный текст (можно исправить вручную)</label><textarea id="recognized" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Здесь появится распознанный текст. Можно также вставить текст вручную."></textarea>
@@ -33,6 +34,6 @@ button.secondary{background:#ece3dc;color:#50453d}button[aria-pressed=true]{back
 <p class="small">Категория — эвристика, не статистическая вероятность. Любое действие требует подтверждения.</p>
 <div id="results" role="region" aria-live="polite"></div></section></div>
 <section id="my-actions" class="card" aria-label="Мои действия"><h2>3 · Мои действия</h2><p class="small">Сохраняются только на этом устройстве и в этом браузере. Очистка данных сайта удалит действия. Синхронизации с основным приложением и календарём пока нет.</p><p id="action-status" role="status"></p><div id="actions"></div></section>
-<p class="small" id="release">Тестовая версия · 2026.10.17.3</p>
-<details><summary>Известные ограничения</summary><p>Нет поиска в Photos, распознавания объектов без текста, настоящего календаря или системных напоминаний. Дата без года остаётся датой без года. Изображение не сохраняется в SQLite.</p></details>
-</main><script src="./vendor/tesseract.min.js" defer></script><script type="module" src="./app.mjs?v=20261017.3"></script></body></html>
+<p class="small" id="release">Тестовая версия · 2026.10.18.1</p>
+<details><summary>Известные ограничения</summary><p>Нет поиска в Photos, точного определения брендов и моделей товаров, настоящего календаря или системных напоминаний. Дата без года остаётся датой без года. Изображение не сохраняется в SQLite.</p></details>
+</main><script src="./vendor/tesseract.min.js" defer></script><script type="module" src="./app.mjs?v=20261018.1"></script></body></html>

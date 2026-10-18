@@ -1,3 +1,5 @@
+import { combineUnderstanding, unknownImage } from './image-understanding.mjs';
+import { analyzeImageLocally } from './vision.mjs';
 import { makeOcrResult } from './ocr.mjs';
 import { reviewableSuggestedIntent, suggestIntentFromOcr } from './intent.mjs';
 
@@ -5,6 +7,7 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   photo: $('photo'), preview: $('preview'), scan: $('scan'), clear: $('clear'),
   recognized: $('recognized'), analyze: $('analyze'), status: $('status'),
+  vision: $('vision'),
   results: $('results'), actions: $('actions'), actionStatus: $('action-status'),
 };
 const categoryNames = {
@@ -21,7 +24,10 @@ let selectedFile = null;
 let activeWorker = null;
 let scanGeneration = 0;
 let draftActionId = null;
+let imageUnderstanding = null;
+let visionAbort = null;
 const offlineOcr = document.documentElement.dataset.offlineOcr === 'true';
+ui.vision.hidden = !offlineOcr;
 const offlineWorkerOptions = offlineOcr ? {
   workerPath: new URL('./vendor/worker.min.js', import.meta.url).href,
   corePath: new URL('./vendor/tesseract-core-lstm.wasm.js', import.meta.url).href,
@@ -42,16 +48,22 @@ function showText(parent, tag, text, className = '') {
   return item;
 }
 function renderSuggestion(text) {
-  if (!text.trim()) {
+  if (!text.trim() && !imageUnderstanding) {
     ui.results.replaceChildren();
     setStatus('Сначала распознайте скриншот или введите текст.');
     return;
   }
   const suggestion = suggestIntentFromOcr(makeOcrResult('manual', text));
-  const proposed = reviewableSuggestedIntent(suggestion);
+  const combined = combineUnderstanding({ category: suggestion.category, proposedIntent: reviewableSuggestedIntent(suggestion) }, imageUnderstanding);
+  const proposed = combined.proposedIntent;
   ui.results.replaceChildren();
   showText(ui.results, 'h2', 'Предположение');
-  showText(ui.results, 'p', 'Категория: ' + categoryNames[suggestion.category]);
+  showText(ui.results, 'p', 'Категория: ' + categoryNames[combined.category]);
+  if (imageUnderstanding) {
+    showText(ui.results, 'p', 'Изображение: ' + (imageUnderstanding.accepted ? 'похоже на «' + imageUnderstanding.label + '».' : imageUnderstanding.label + '.'));
+    showText(ui.results, 'p', 'Распознаётся общий класс предмета. Бренд, точная модель, цена и ваше намерение по картинке не устанавливаются.', 'small');
+  }
+  if (combined.conflict) showText(ui.results, 'p', 'Текст и изображение дают разные подсказки. Проверьте их и выберите намерение самостоятельно.', 'small');
   const intentSummary = showText(ui.results, 'p', 'Намерение: ' +
     (proposed ? intentNames[proposed] + ' (предложено, не выбрано)' : 'выберите кнопкой ниже'));
   const signalNames = { none: 'нет сигналов', weak: 'слабые', moderate: 'умеренные', strong: 'выраженные' };
@@ -246,6 +258,8 @@ void renderActions();
 
 function reset() {
   scanGeneration += 1;
+  visionAbort?.abort();
+  imageUnderstanding = null;
   if (activeWorker) void activeWorker.terminate().catch(() => {});
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = null;
@@ -256,10 +270,14 @@ function reset() {
   ui.recognized.value = '';
   invalidateDraft();
   ui.scan.disabled = true;
+  ui.vision.disabled = true;
   setStatus('Данные текущего теста очищены из интерфейса.');
 }
 ui.photo.addEventListener('change', () => {
   // Never show the previous screenshot's text or confirmed choice for a new file.
+  visionAbort?.abort();
+  imageUnderstanding = null;
+  ui.vision.disabled = true;
   ui.recognized.value = '';
   invalidateDraft();
   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -279,6 +297,7 @@ ui.photo.addEventListener('change', () => {
   ui.preview.src = previewUrl;
   ui.preview.style.display = 'block';
   ui.scan.disabled = false;
+  ui.vision.disabled = !offlineOcr;
   setStatus('Готово. Нажмите «Распознать локально».');
 });
 ui.clear.addEventListener('click', reset);
@@ -299,6 +318,7 @@ ui.scan.addEventListener('click', async () => {
   ui.recognized.value = '';
   ui.recognized.disabled = true;
   ui.analyze.disabled = true;
+  ui.vision.disabled = true;
   const currentGeneration = ++scanGeneration;
   ui.scan.disabled = true;
   ui.photo.disabled = true;
@@ -349,6 +369,53 @@ ui.scan.addEventListener('click', async () => {
     ui.photo.disabled = false;
     ui.recognized.disabled = false;
     ui.analyze.disabled = false;
+    ui.vision.disabled = !selectedFile || !offlineOcr;
     ui.scan.disabled = !selectedFile;
+  }
+});
+
+ui.vision.addEventListener('click', async () => {
+  if (busy || !selectedFile || !offlineOcr) return;
+  busy = true;
+  const currentGeneration = ++scanGeneration;
+  const controller = new AbortController();
+  visionAbort = controller;
+  invalidateDraft();
+  imageUnderstanding = null;
+  ui.photo.disabled = ui.scan.disabled = ui.vision.disabled = ui.analyze.disabled = ui.recognized.disabled = true;
+  setStatus('Готовлю локальное распознавание изображения…');
+  try {
+    await ui.preview.decode();
+    if (currentGeneration !== scanGeneration) return;
+    const report = await analyzeImageLocally(ui.preview, {
+      signal: controller.signal,
+      onProgress(stage) {
+        if (currentGeneration !== scanGeneration) return;
+        const messages = {
+          loading: 'Загружаю локальную модель изображения. Первый запуск — около 30 МБ…',
+          starting: 'Запускаю модель на устройстве…',
+          analyzing: 'Определяю общий класс изображения…',
+        };
+        setStatus(messages[stage] ?? 'Обрабатываю изображение…');
+      },
+    });
+    if (currentGeneration !== scanGeneration) return;
+    imageUnderstanding = report;
+    renderSuggestion(ui.recognized.value);
+    setStatus(report.accepted
+      ? 'Изображение разобрано. Проверьте подсказку и выберите намерение.'
+      : 'Изображение не удалось определить уверенно. Выберите намерение вручную или используйте текст.');
+  } catch {
+    if (currentGeneration === scanGeneration) {
+      imageUnderstanding = unknownImage();
+      renderSuggestion(ui.recognized.value);
+      setStatus('Локальное распознавание изображения недоступно. Можно распознать текст и выбрать намерение вручную.');
+    }
+  } finally {
+    if (visionAbort === controller) visionAbort = null;
+    busy = false;
+    ui.photo.disabled = ui.analyze.disabled = ui.recognized.disabled = false;
+    ui.scan.disabled = !selectedFile;
+    ui.vision.disabled = !selectedFile || !offlineOcr;
   }
 });

@@ -1,18 +1,17 @@
-# Screenshot Intent — Public OCR Preview
+# Screenshot Intent — Local OCR and image understanding preview
 
-Public **static** demo of Russian/English screenshot text recognition and a deterministic intent suggestion engine. This is **not** the full private mobile application.
+Release 2026.10.18.1. This public repository contains a reviewed static test artifact only; the main mobile repository remains private.
 
-- Choose a test image manually in the browser. OCR runs in the browser; no image upload API or analytics is implemented.
-- OCR binaries and language models are vendored, with SHA-256 hashes in vendor/SHA256.json.
-- The site uses same-origin Content Security Policy, and its service worker caches only static scripts and models, not photos or OCR results.
-- Suggestions are heuristics, not actions; always review recognized text and proposed category.
-- Device support and recognition accuracy on real screenshots remain under testing.
-- Third-party attribution: vendor/NOTICE.md and vendor/LICENSE_TESSERACT.md.
+Select a test screenshot. Use "Распознать текст" for local Russian/English OCR and "Понять изображение" for coarse object classification. Both results contribute suggestions; you must explicitly choose the intent and explicitly save the reviewed action.
 
-**Do not use sensitive screenshots while this public test build is under evaluation.**
+- Image analysis: pinned MobileNetV4 FP32, single-thread ONNX Runtime Web CPU/WASM in a dedicated worker. First image run loads about 30 MB of model/runtime assets from this same origin. Browser/device performance is not guaranteed.
+- OCR: pinned local Russian/English Tesseract. No cloud inference, runtime CDN, analytics or image-upload endpoint.
+- File pixels and raw OCR remain in transient memory; they are not automatically saved. IndexedDB receives only reviewed action ID, title, intent, due date, status and timestamps after explicit Save.
+- The service worker caches allowlisted static assets/models only. Image model assets load and cache lazily. After successful caching, image and text recognition can work offline.
+- This recognizes coarse classes, not brands, exact products, prices, addresses, identities or what the user wants. Weak or conflicting evidence needs manual review.
+- Action history is local to this browser; clearing site data deletes actions. There is no calendar, native-app or cross-device synchronization.
+- SHA-256 manifests and all required third-party notices are included under vendor/.
+- Windows Chrome control tests are automated. Physical iPhone Safari image recognition, memory limits and installed-PWA behavior remain pending. The user has reported that the earlier OCR and intent-choice path works on their iPhone.
+- Hosting receives ordinary static GET requests, IP address and user agent. App code does not send screenshots or OCR bodies.
 
-## Local action preview — 2026.10.17.3
-
-Confirm an intent, review or edit the generic action title, optionally choose a date, then explicitly save. Only action ID, intent, title, due date, status and timestamps enter this browser's IndexedDB. No screenshot, source filename, extracted URL or raw OCR text is automatically persisted. Clear resets the current OCR draft; saved actions remain until individually deleted or site data is cleared. Actions can be completed, cancelled, restored and deleted. There is no native app, calendar or cross-device synchronization. Storage failure is shown and never reported as success.
-
-Changing OCR text or screenshots invalidates the previous confirmed choice. The full synthetic browser flow and offline restoration are tested on Windows Chrome; physical iPhone Safari acceptance remains open.
+Use non-sensitive test images while physical device acceptance and server header hardening remain open.

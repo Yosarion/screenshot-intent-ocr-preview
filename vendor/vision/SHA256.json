@@ -1,0 +1,37 @@
+{
+  "runtime": "onnxruntime-web@1.30.0",
+  "npmIntegrity": "sha512-q0y+JrrtukXSzsBWEMccVfqX25LRmosXHF+CaRJmg8pZClzcV7svNc4rKY3jL02Vb7QmRMDs1SigqR4CXAfKYQ==",
+  "modelRevision": "3ba07f12712fa58fd6b3d661f9909c9e332c5005",
+  "files": [
+    {
+      "path": "ort.wasm.min.mjs",
+      "bytes": 50126,
+      "sha256": "219e6a1fc8a9938268d18efca3c91d310bd2f4a59bbd13744df5b2b7fc6cee3b",
+      "source": "onnxruntime-web@1.30.0/dist/ort.wasm.min.mjs"
+    },
+    {
+      "path": "ort-wasm-simd-threaded.mjs",
+      "bytes": 24381,
+      "sha256": "e13f7f94fc51b4ca72b12faeb1ee95f4ace6dfbc8939bc718aabdc0a27c4299b",
+      "source": "onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.mjs"
+    },
+    {
+      "path": "ort-wasm-simd-threaded.wasm",
+      "bytes": 14239897,
+      "sha256": "3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2",
+      "source": "onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"
+    },
+    {
+      "path": "mobilenet-v4.onnx",
+      "bytes": 15086122,
+      "sha256": "ca5b8dbf490f54e83c5d72f787821565447ea94347935f6b834cf0a4af0e8d37",
+      "source": "https://huggingface.co/onnx-community/mobilenetv4_conv_small.e2400_r224_in1k/resolve/3ba07f12712fa58fd6b3d661f9909c9e332c5005/onnx/model.onnx"
+    },
+    {
+      "path": "imagenet-labels.json",
+      "bytes": 23676,
+      "sha256": "4e48e3093b51975e4f34254f137f16b9d9355597a82f2632f2ea10b4bd99d654",
+      "source": "Pinned model config.json id2label; 1000 ImageNet labels"
+    }
+  ]
+}
