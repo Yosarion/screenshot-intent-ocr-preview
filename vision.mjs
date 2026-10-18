@@ -1,5 +1,26 @@
 import { unknownImage } from './image-understanding.mjs';
 
+const failureMessages = {
+  V_DOWNLOAD: 'Не удалось загрузить файлы модели. Проверьте интернет и повторите.',
+  V_MANIFEST: 'Не удалось проверить список файлов модели. Обновите страницу.',
+  V_INTEGRITY: 'Файл модели повреждён. Повторите загрузку.',
+  V_RUNTIME: 'Не удалось загрузить движок распознавания. Обновите страницу в Safari.',
+  V_WORKER: 'Браузер не смог запустить обработку изображения. Откройте ссылку в Safari.',
+  V_COMPAT: 'Движок модели несовместим с этой версией браузера.',
+  V_MEMORY: 'Недостаточно памяти для модели. Закройте лишние вкладки и повторите.',
+  V_START: 'Модель загрузилась, но не смогла запуститься.',
+  V_INFER: 'Ошибка во время обработки изображения.',
+  V_TIMEOUT: 'Обработка заняла слишком много времени. Держите страницу открытой и повторите.',
+  V_IMAGE: 'Не удалось подготовить изображение. Выберите файл повторно.',
+};
+export function imageFailureMessage(error) {
+  const code = Object.hasOwn(failureMessages, error?.code) ? error.code : 'V_IMAGE';
+  return failureMessages[code] + ' Код: ' + code + '. Можно распознать текст или выбрать намерение вручную.';
+}
+function failure(code) {
+  return Object.assign(new Error('Local image analysis failed'), { code });
+}
+
 // Resize and normalize only in memory; nothing is saved or sent to a server.
 export function prepareVisionInput(image) {
   const canvas = document.createElement('canvas');
@@ -32,7 +53,9 @@ export function analyzeImageLocally(image, { signal, onProgress = () => {} } = {
   const prepared = prepareVisionInput(image);
   if (prepared.variance < 0.0001) return Promise.resolve(unknownImage());
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./vision-worker.mjs', import.meta.url), { type: 'module' });
+    let worker;
+    try { worker = new Worker(new URL('./vision-worker.mjs?v=20261018.2', import.meta.url), { type: 'module' }); }
+    catch { reject(failure('V_WORKER')); return; }
     let finished = false;
     const finish = (error, result) => {
       if (finished) return;
@@ -43,14 +66,16 @@ export function analyzeImageLocally(image, { signal, onProgress = () => {} } = {
       if (error) reject(error); else resolve(result);
     };
     const cancel = () => finish(new DOMException('Cancelled', 'AbortError'));
-    const timer = setTimeout(() => finish(new Error('Local image analysis timed out')), 120000);
+    const timer = setTimeout(() => finish(failure('V_TIMEOUT')), 120000);
     signal?.addEventListener('abort', cancel, { once: true });
     worker.onmessage = ({ data }) => {
       if (data.type === 'progress') onProgress(data.stage);
       else if (data.type === 'result') finish(null, data.report);
-      else if (data.type === 'error') finish(new Error('Local image analysis failed'));
+      else if (data.type === 'error') finish(failure(data.code));
     };
-    worker.onerror = (event) => { event.preventDefault(); finish(new Error('Local model could not start')); };
-    worker.postMessage({ input: prepared.input.buffer }, [prepared.input.buffer]);
+    worker.onerror = (event) => { event.preventDefault(); finish(failure('V_WORKER')); };
+    worker.onmessageerror = () => finish(failure('V_WORKER'));
+    try { worker.postMessage({ input: prepared.input.buffer }, [prepared.input.buffer]); }
+    catch { finish(failure('V_WORKER')); }
   });
 }

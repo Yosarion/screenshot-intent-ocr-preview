@@ -1,5 +1,5 @@
 import { combineUnderstanding, unknownImage } from './image-understanding.mjs';
-import { analyzeImageLocally } from './vision.mjs';
+import { analyzeImageLocally, imageFailureMessage } from './vision.mjs?v=20261018.2';
 import { makeOcrResult } from './ocr.mjs';
 import { reviewableSuggestedIntent, suggestIntentFromOcr } from './intent.mjs';
 
@@ -405,11 +405,11 @@ ui.vision.addEventListener('click', async () => {
     setStatus(report.accepted
       ? 'Изображение разобрано. Проверьте подсказку и выберите намерение.'
       : 'Изображение не удалось определить уверенно. Выберите намерение вручную или используйте текст.');
-  } catch {
+  } catch (error) {
     if (currentGeneration === scanGeneration) {
       imageUnderstanding = unknownImage();
       renderSuggestion(ui.recognized.value);
-      setStatus('Локальное распознавание изображения недоступно. Можно распознать текст и выбрать намерение вручную.');
+      setStatus('Локальное распознавание изображения недоступно. ' + imageFailureMessage(error));
     }
   } finally {
     if (visionAbort === controller) visionAbort = null;
