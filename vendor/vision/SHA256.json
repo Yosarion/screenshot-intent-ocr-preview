@@ -1,6 +1,11 @@
 {
   "runtime": "onnxruntime-web@1.30.0",
   "npmIntegrity": "sha512-q0y+JrrtukXSzsBWEMccVfqX25LRmosXHF+CaRJmg8pZClzcV7svNc4rKY3jL02Vb7QmRMDs1SigqR4CXAfKYQ==",
+  "memoryPolicy": {
+    "maximumBytes": 268435456,
+    "loaderUpstreamSha256": "e13f7f94fc51b4ca72b12faeb1ee95f4ace6dfbc8939bc718aabdc0a27c4299b",
+    "patch": "primary shared memory maximum pages: 65536 -> 4096 (16 MiB initial, 256 MiB maximum)"
+  },
   "modelRevision": "3ba07f12712fa58fd6b3d661f9909c9e332c5005",
   "files": [
     {
@@ -11,8 +16,8 @@
     },
     {
       "path": "ort-wasm-simd-threaded.mjs",
-      "bytes": 24381,
-      "sha256": "e13f7f94fc51b4ca72b12faeb1ee95f4ace6dfbc8939bc718aabdc0a27c4299b",
+      "bytes": 24380,
+      "sha256": "62dc5bef5c2cab005cf7f6c025e3222b16066e6f0631c9e304ddcaf06ba4e28f",
       "source": "onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.mjs"
     },
     {

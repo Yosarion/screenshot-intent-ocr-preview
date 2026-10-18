@@ -1,5 +1,5 @@
 import { combineUnderstanding, unknownImage } from './image-understanding.mjs';
-import { analyzeImageLocally, imageFailureMessage } from './vision.mjs?v=20261018.2';
+import { analyzeImageLocally, imageFailureMessage } from './vision.mjs?v=20261018.3';
 import { makeOcrResult } from './ocr.mjs';
 import { reviewableSuggestedIntent, suggestIntentFromOcr } from './intent.mjs';
 

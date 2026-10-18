@@ -38,7 +38,7 @@ self.onmessage = async (event) => {
     const ort = await import('./vendor/vision/ort.wasm.min.mjs');
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
-    ort.env.wasm.wasmPaths = new URL('./vendor/vision/', import.meta.url).href;
+    ort.env.wasm.wasmPaths = { mjs: new URL('./vendor/vision/ort-wasm-simd-threaded.mjs?v=20261018.3', import.meta.url).href };
     // Supply verified bytes instead of an opaque second runtime fetch.
     ort.env.wasm.wasmBinary = wasm;
     ort.env.logLevel = 'error';

@@ -7,7 +7,7 @@ const failureMessages = {
   V_RUNTIME: 'Не удалось загрузить движок распознавания. Обновите страницу в Safari.',
   V_WORKER: 'Браузер не смог запустить обработку изображения. Откройте ссылку в Safari.',
   V_COMPAT: 'Движок модели несовместим с этой версией браузера.',
-  V_MEMORY: 'Недостаточно памяти для модели. Закройте лишние вкладки и повторите.',
+  V_MEMORY: 'Браузер отказал в выделении памяти для модели. Это может быть ограничением движка браузера.',
   V_START: 'Модель загрузилась, но не смогла запуститься.',
   V_INFER: 'Ошибка во время обработки изображения.',
   V_TIMEOUT: 'Обработка заняла слишком много времени. Держите страницу открытой и повторите.',
@@ -54,7 +54,7 @@ export function analyzeImageLocally(image, { signal, onProgress = () => {} } = {
   if (prepared.variance < 0.0001) return Promise.resolve(unknownImage());
   return new Promise((resolve, reject) => {
     let worker;
-    try { worker = new Worker(new URL('./vision-worker.mjs?v=20261018.2', import.meta.url), { type: 'module' }); }
+    try { worker = new Worker(new URL('./vision-worker.mjs?v=20261018.3', import.meta.url), { type: 'module' }); }
     catch { reject(failure('V_WORKER')); return; }
     let finished = false;
     const finish = (error, result) => {
